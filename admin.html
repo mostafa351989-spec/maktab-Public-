@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم مكتب الدلتا</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="container mx-auto p-4 max-w-6xl">
+    <h1 class="text-3xl font-bold text-center mb-6 text-blue-800">لوحة تحكم مكتب الدلتا للتوصيل</h1>
+    <div class="flex flex-wrap gap-2 mb-6 bg-white p-2 rounded-lg shadow">
+      <button onclick="showTab('shipments')" id="tab-shipments" class="tab-btn bg-blue-600 text-white px-4 py-2 rounded">إدارة الشحنات</button>
+      <button onclick="showTab('prices')" id="tab-prices" class="tab-btn bg-gray-200 px-4 py-2 rounded">الخدمات والأسعار</button>
+      <button onclick="showTab('settings')" id="tab-settings" class="tab-btn bg-gray-200 px-4 py-2 rounded">إعدادات التطبيق</button>
+      <button onclick="showTab('reports')" id="tab-reports" class="tab-btn bg-gray-200 px-4 py-2 rounded">التقارير</button>
+    </div>
+    <div id="shipments" class="tab-content bg-white p-6 rounded-lg shadow">
+      <h2 class="text-2xl font-bold mb-4">إضافة شحنة جديدة</h2>
+      <div class="grid md:grid-cols-2 gap-4 mb-6">
+        <input id="customerName" placeholder="اسم العميل" class="border p-2 rounded">
+        <input id="customerPhone" placeholder="رقم الموبايل" class="border p-2 rounded">
+        <input id="customerAddress" placeholder="العنوان بالتفصيل" class="border p-2 rounded">
+        <select id="gov" class="border p-2 rounded">
+          <option>القاهرة</option><option>الجيزة</option><option>الإسكندرية</option>
+          <option>الدقهلية</option><option>الغربية</option><option>الشرقية</option>
+        </select>
+        <input id="weight" placeholder="الوزن بالكيلو" type="number" class="border p-2 rounded">
+        <input id="price" placeholder="سعر التوصيل" type="number" class="border p-2 rounded">
+      </div>
+      <button onclick="addShipment()" class="bg-green-600 text-white px-6 py-2 rounded">إضافة الشحنة</button>
+      <h2 class="text-2xl font-bold my-6">كل الشحنات</h2>
+      <div id="shipmentsList" class="space-y-3"></div>
+    </div>
+    <div id="prices" class="tab-content bg-white p-6 rounded-lg shadow hidden">
+      <h2 class="text-2xl font-bold mb-4">أسعار التوصيل لكل محافظة</h2>
+      <div id="pricesList" class="grid md:grid-cols-3 gap-4"></div>
+      <button onclick="savePrices()" class="bg-blue-600 text-white px-6 py-2 rounded mt-4">حفظ الأسعار</button>
+    </div>
+    <div id="settings" class="tab-content bg-white p-6 rounded-lg shadow hidden">
+      <h2 class="text-2xl font-bold mb-4">إعدادات التطبيق الرئيسية</h2>
+      <div class="space-y-4 max-w-lg">
+        <div><label class="block font-bold mb-1">اسم المكتب</label>
+        <input id="officeName" class="border p-2 rounded w-full" placeholder="مكتب الدلتا للتوصيل"></div>
+        <div><label class="block font-bold mb-1">رقم الواتساب</label>
+        <input id="whatsappNumber" class="border p-2 rounded w-full" placeholder="201000000000"></div>
+        <div><label class="block font-bold mb-1">السعر الافتراضي للتوصيل</label>
+        <input id="defaultPrice" type="number" class="border p-2 rounded w-full" placeholder="60"></div>
+        <button onclick="saveSettings()" class="bg-blue-600 text-white px-6 py-2 rounded">حفظ الإعدادات</button>
+        <p class="text-sm text-green-600 mt-2">* أي تغيير هنا هيظهر في الموقع الرئيسي فوراً</p>
+      </div>
+    </div>
+    <div id="reports" class="tab-content bg-white p-6 rounded-lg shadow hidden">
+      <h2 class="text-2xl font-bold mb-4">التقارير</h2>
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="bg-blue-100 p-4 rounded"><h3 class="font-bold">إجمالي الشحنات</h3><p id="totalShipments" class="text-2xl">0</p></div>
+        <div class="bg-green-100 p-4 rounded"><h3 class="font-bold">إجمالي الأرباح</h3><p id="totalRevenue" class="text-2xl">0 جنيه</p></div>
+        <div class="bg-yellow-100 p-4 rounded"><h3 class="font-bold">شحنات اليوم</h3><p id="todayShipments" class="text-2xl">0</p></div>
+      </div>
+    </div>
+  </div>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyDi8yKVr88euL-xhLMFb1CHoJE_8AfcCDE",
+    authDomain: "maktab-delivery-4ead7.firebaseapp.com",
+    projectId: "maktab-delivery-4ead7",
+    storageBucket: "maktab-delivery-4ead7.firebasestorage.app",
+    messagingSenderId: "665234351339",
+    appId: "1:665234351339:web:4b043784e8abdc5b380aae"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+  function showTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.classList.remove('bg-blue-600', 'text-white');
+      btn.classList.add('bg-gray-200');
+    });
+    document.getElementById(tabName).classList.remove('hidden');
+    document.getElementById('tab-' + tabName).classList.add('bg-blue-600', 'text-white');
+    document.getElementById('tab-' + tabName).classList.remove('bg-gray-200');
+    if(tabName === 'shipments') loadShipments();
+    if(tabName === 'prices') loadPrices();
+    if(tabName === 'settings') loadSettings();
+    if(tabName === 'reports') loadReports();
+  }
+  async function addShipment() {
+    if(!customerName.value ||!customerPhone.value) return alert('اكتب اسم العميل والرقم على الأقل');
+    const shipment = {
+      trackingId: 'DL' + Date.now(),
+      customerName: customerName.value,
+      customerPhone: customerPhone.value,
+      customerAddress: customerAddress.value,
+      gov: gov.value,
+      weight: Number(weight.value) || 0,
+      price: Number(price.value) || 0,
+      status: 'قيد المراجعة',
+      date: new Date().toISOString()
+    };
+    await db.collection('shipments').add(shipment);
+    alert('تم إضافة الشحنة برقم تتبع: ' + shipment.trackingId);
+    customerName.value = customerPhone.value = customerAddress.value = weight.value = price.value = '';
+    loadShipments();
+  }
+  async function loadShipments() {
+    const snapshot = await db.collection('shipments').orderBy('date', 'desc').get();
+    shipmentsList.innerHTML = '';
+    if(snapshot.empty) shipmentsList.innerHTML = '<p class="text-gray-500">مفيش شحنات لسه</p>';
+    snapshot.forEach(doc => {
+      const s = doc.data();
+      shipmentsList.innerHTML += `
+        <div class="border p-3 rounded flex justify-between items-center">
+          <div><p class="font-bold">${s.trackingId} - ${s.customerName}</p>
+          <p class="text-sm">${s.gov} | ${s.price} جنيه | ${s.status}</p></div>
+          <select onchange="updateStatus('${doc.id}', this.value)" class="border p-1 rounded">
+            <option ${s.status==='قيد المراجعة'?'selected':''}>قيد المراجعة</option>
+            <option ${s.status==='جاري التوصيل'?'selected':''}>جاري التوصيل</option>
+            <option ${s.status==='تم التوصيل'?'selected':''}>تم التوصيل</option>
+            <option ${s.status==='ملغي'?'selected':''}>ملغي</option>
+          </select>
+        </div>`;
+    });
+  }
+  async function updateStatus(id, status) {
+    await db.collection('shipments').doc(id).update({status});
+    loadShipments();
+  }
+  async function loadPrices() {
+    const defaultPrices = {'القاهرة': 50, 'الجيزة': 50, 'الإسكندرية': 60,'الدقهلية': 55, 'الغربية': 55, 'الشرقية': 55};
+    const doc = await db.collection('settings').doc('prices').get();
+    const prices = doc.exists? doc.data() : defaultPrices;
+    pricesList.innerHTML = '';
+    for (let gov in prices) {
+      pricesList.innerHTML += `<div class="border p-2 rounded"><label class="block font-bold">${gov}</label>
+      <input id="price-${gov}" type="number" value="${prices[gov]}" class="border p-1 rounded w-full"></div>`;
+    }
+  }
+  async function savePrices() {
+    const prices = {};
+    document.querySelectorAll('[id^="price-"]').forEach(input => {
+      const gov = input.id.replace('price-', '');
+      prices[gov] = Number(input.value);
+    });
+    await db.collection('settings').doc('prices').set(prices);
+    alert('تم حفظ الأسعار');
+  }
+  async function loadSettings() {
+    const doc = await db.collection('settings').doc('main').get();
+    if (doc.exists) {
+      const data = doc.data();
+      officeName.value = data.officeName || '';
+      whatsappNumber.value = data.whatsappNumber || '';
+      defaultPrice.value = data.defaultPrice || '';
+    }
+  }
+  async function saveSettings() {
+    await db.collection('settings').doc('main').set({
+      officeName: officeName.value,
+      whatsappNumber: whatsappNumber.value,
+      defaultPrice: Number(defaultPrice.value)
+    });
+    alert('تم حفظ الإعدادات. هتسمع في الموقع الرئيسي فوراً');
+  }
+  async function loadReports() {
+    const snapshot = await db.collection('shipments').get();
+    let total = 0, revenue = 0, today = 0;
+    const todayDate = new Date().toDateString();
+    snapshot.forEach(doc => {
+      const s = doc.data();
+      total++;
+      revenue += s.price || 0;
+      if (new Date(s.date).toDateString() === todayDate) today++;
+    });
+    totalShipments.textContent = total;
+    totalRevenue.textContent = revenue + ' جنيه';
+    todayShipments.textContent = today;
+  }
+  showTab('shipments');
+</script>
+</body>
+</html>
